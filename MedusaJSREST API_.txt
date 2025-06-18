@@ -1,0 +1,750 @@
+﻿Uproszczona Dokumentacja MedusaJS v2.8 Store REST API: Produkty, Zamówienia, Klienci
+
+
+
+
+1. Wprowadzenie do MedusaJS Store API
+
+
+MedusaJS to elastyczna platforma headless commerce, której backend oparty na Node.js udostępnia bogaty zestaw funkcjonalności poprzez interfejsy REST API. Store API, będące częścią tego zestawu, zostało zaprojektowane specjalnie do interakcji z aplikacjami frontendowymi, takimi jak sklepy internetowe (webshopy) czy aplikacje mobilne. Umożliwia ono wyświetlanie produktów, zarządzanie koszykiem zakupowym, procesowanie zamówień oraz obsługę kont klientów.1
+Wszystkie trasy API Store są spójnie poprzedzone prefiksem /store. Oznacza to, że w środowisku deweloperskim punkty końcowe są zazwyczaj dostępne pod adresem http://localhost:9000/store. W przypadku wdrożenia produkcyjnego, http://localhost:9000 należy zastąpić rzeczywistym adresem URL Twojej aplikacji Medusa.1 Niniejsza dokumentacja koncentruje się na specyfice MedusaJS w wersji 2.8, co jest istotne ze względu na potencjalne różnice w zachowaniu i strukturze API między poszczególnymi wydaniami.1
+
+
+2. Podstawowe Koncepcje API
+
+
+Ta sekcja przedstawia fundamentalne aspekty interakcji z MedusaJS Store API, które mają zastosowanie do większości punktów końcowych i są kluczowe dla prawidłowej integracji.
+
+
+2.1. Autentykacja
+
+
+MedusaJS Store API oferuje różnorodne metody autentykacji, aby sprostać wymaganiom różnych architektur frontendowych. Główne typy autentykacji dla klientów to tokeny JWT (JSON Web Token) oraz sesje oparte na ciasteczkach (Cookie Session ID). Dodatkowo, dla precyzyjnego określania zakresu żądań, wykorzystywane są klucze API do publikacji.1
+
+
+2.1.1. Tokeny JWT (JSON Web Token)
+
+
+Tokeny JWT są szczególnie odpowiednie dla aplikacji Jamstack i mobilnych, gdzie zarządzanie stanem autentykacji odbywa się po stronie klienta.1
+* Jak uzyskać: Aby uzyskać token JWT, należy wysłać żądanie POST do punktu autentykacji /store/auth. W ciele zapytania należy przekazać adres e-mail i hasło klienta. W przypadku pomyślnej autentykacji, odpowiedź zawiera obiekt z właściwością token.1
+   * Przykładowe Zapytanie (cURL - uzyskanie JWT):
+Bash
+curl -X POST 'http://localhost:9000/store/auth' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "email": "customer@example.com",
+   "password": "your_password"
+}'
+
+   * Przykładowa Odpowiedź 200 OK (JSON - uzyskanie JWT):
+JSON
+{
+   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcl9pZCI6ImN1c18wMUczU0czMEo4Qzg1UzRBNUMyTUwyUzFOUzIiLCJkb21haW5faWQiOiJkb21fMDEzNDU2Nzg5MDEyMzQ1Njc4OTAiLCJpYXQiOjE2NzgwNTY2NzcsImV4cCI6MTY3ODE0MzA3N30.signature"
+}
+
+   * Jak używać: Uzyskany token JWT należy przekazać w nagłówku Authorization w formacie Bearer Authorization, na przykład: Authorization: Bearer {jwt_token}.1
+   * Przykładowe Zapytanie (cURL - użycie JWT):
+Bash
+curl -X GET 'http://localhost:9000/store/customers/me' \
+-H 'Authorization: Bearer {your_jwt_token}'
+
+
+
+2.1.2. Sesje Cookie ID
+
+
+Sesje oparte na ciasteczkach są stosowane, gdy stan autentykacji jest zarządzany po stronie serwera, co jest typowe dla tradycyjnych aplikacji webowych (np. z Next.js) lub w narzędziach takich jak Postman.1
+      * Jak uzyskać: Po pomyślnej autentykacji klienta (np. poprzez POST /store/auth), serwer automatycznie ustawia Cookie Session ID (zazwyczaj connect.sid) w nagłówku Set-Cookie odpowiedzi.1 Przeglądarki internetowe oraz niektóre narzędzia do testowania API (jak Postman) automatycznie zarządzają tymi ciasteczkami, przesyłając je w kolejnych żądaniach.
+      * Jak używać: Ciasteczko jest automatycznie przesyłane w kolejnych żądaniach z przeglądarki. W przypadku użycia Fetch API w JavaScript, należy upewnić się, że opcja credentials: "include" jest ustawiona w żądaniu, aby ciasteczka były dołączane.1
+
+
+2.1.3. Klucze API do Publikacji (Publishable API Keys)
+
+
+Klucze API do publikacji służą do określania zakresu żądań, na przykład do konkretnych kanałów sprzedaży. Ich użycie jest wysoce rekomendowane we wszystkich żądaniach do Store API, aby zapewnić prawidłowe filtrowanie danych.1
+      * Jak uzyskać: Klucze te mogą być utworzone za pomocą Admin REST API 1 lub bezpośrednio w panelu administracyjnym Medusa.1
+      * Jak używać: Klucz API należy przekazać w nagłówku x-publishable-api-key, na przykład: x-publishable-api-key: {your_publishable_api_key}.1
+Wpływ na architekturę: Dostępność zarówno autentykacji JWT (bezstanowej), jak i sesji opartych na ciasteczkach (stanowych) w MedusaJS Store API jest świadomym wyborem projektowym. Ta elastyczność umożliwia platformie obsługę różnorodnych architektur frontendowych. JWT są idealne dla aplikacji mobilnych i Jamstack, gdzie backend nie musi utrzymywać stanu sesji, co sprzyja wysokiej skalowalności i architekturze mikroserwisów. Z kolei sesje ciasteczkowe są prostsze w implementacji dla tradycyjnych aplikacji webowych, choć mogą wprowadzać złożoność w skalowaniu horyzontalnym. Ta zdolność do adaptacji do różnych paradygmatów autentykacji podkreśla filozofię MedusaJS, która koncentruje się na optymalizacji pod kątem szerokich możliwości dostosowania.2 Pozwala to programistom na swobodny wybór rozwiązania, które najlepiej odpowiada ich specyficznym potrzebom biznesowym i technicznym, bez narzucania jednej, sztywnej ścieżki.
+Poniższa tabela podsumowuje omówione metody autentykacji:
+Tabela 2: Metody Autentykacji
+Metoda Autentykacji
+	Cel
+	Jak uzyskać
+	Jak używać (nagłówki/ciasteczka)
+	Kiedy używać
+	Tokeny JWT
+	Bezstanowa autentykacja klienta.
+	POST /store/auth z email i password w ciele zapytania. Odpowiedź zawiera token. 1
+	Nagłówek Authorization: Bearer {jwt_token} 1
+	Aplikacje Jamstack, aplikacje mobilne (React Native), gdzie stan jest zarządzany po stronie klienta. 1
+	Sesje Cookie ID
+	Stanowa autentykacja klienta.
+	Automatycznie ustawiane w nagłówku Set-Cookie po pomyślnej autentykacji (np. POST /store/auth). 1
+	Automatycznie przesyłane przez przeglądarki. W Fetch API: credentials: "include". 1
+	Aplikacje webowe (Next.js), narzędzia takie jak Postman, gdzie sesja jest zarządzana po stronie serwera. 1
+	Klucze API do Publikacji
+	Określanie zakresu żądań (np. kanały sprzedaży).
+	Utworzone przez Admin REST API lub panel administracyjny Medusa. 1
+	Nagłówek x-publishable-api-key: {your_publishable_api_key}. 1
+	Wszystkie żądania do Store API, aby precyzyjnie określić kontekst danych. 1
+	
+
+2.2. Ogólne Parametry Zapytania
+
+
+Wiele tras API Store akceptuje standardowe parametry zapytania, które umożliwiają filtrowanie, rozwijanie relacji między encjami, wybieranie konkretnych pól w odpowiedzi oraz kontrolę paginacji i sortowania wyników.1
+
+
+2.2.1. Rozwijanie Relacji (expand)
+
+
+Parametr expand pozwala na dołączenie powiązanych encji do głównej odpowiedzi, co eliminuje potrzebę wykonywania wielu oddzielnych zapytań w celu pobrania kompletnych danych.1
+      * Użycie:
+      * Pojedyncza relacja: ?expand=collection
+      * Wiele relacji: ?expand=variants,collection
+      * Zagnieżdżone relacje: ?expand=variants.options
+      * Zapobieganie domyślnemu rozwijaniu: ?expand= (pusta wartość).5
+
+
+2.2.2. Wybór Pól (fields)
+
+
+Parametr fields umożliwia precyzyjne określenie, które pola danej encji mają zostać zwrócone w odpowiedzi. Zwracane są tylko określone pola oraz identyfikator (id) encji, co pomaga zredukować rozmiar przesyłanych danych.1
+      * Użycie:
+      * Pojedyncze pole: ?fields=title
+      * Wiele pól: ?fields=title,handle
+      * Tylko ID: ?fields= (pusta wartość).5
+      * Można również używać operatorów + (dodaj do domyślnych) i - (usuń z domyślnych), aby modyfikować domyślny zestaw zwracanych pól.1
+
+
+2.2.3. Paginacja (limit, offset, count)
+
+
+Punkty końcowe API służące do listowania zasobów (np. produktów, zamówień) obsługują paginację, która pozwala kontrolować liczbę zwracanych elementów i nawigować po stronach wyników.1
+      * Parametry Zapytania:
+      * limit: Określa maksymalną liczbę elementów do zwrócenia w pojedynczej odpowiedzi (np. ?limit=50). Domyślnie dla niektórych list może to być 100 rekordów.5
+      * offset: Wskazuje liczbę elementów, które należy pominąć przed zwróceniem wyników. Jest to kluczowe dla nawigacji między stronami (np. ?offset=0 dla pierwszej strony, ?offset=50 dla drugiej strony, jeśli limit=50).1
+      * Pola w Odpowiedzi: Odpowiedzi z listami zasobów zazwyczaj zawierają trzy dodatkowe pola związane z paginacją: limit, offset oraz count (całkowita liczba dostępnych elementów), co ułatwia obliczenie całkowitej liczby stron (count / limit).1
+
+
+2.2.4. Sortowanie (order)
+
+
+Pole order pozwala na sortowanie zwróconych elementów według wartości określonego atrybutu.1
+      * Użycie: ?order=created_at sortuje rosnąco. Aby posortować malejąco, należy poprzedzić nazwę atrybutu myślnikiem, np. ?order=-created_at.1
+
+
+2.2.5. Typy Danych w Parametrach Zapytania
+
+
+Ta sekcja wyjaśnia, jak przekazywać typowe typy danych jako parametry zapytania, co jest szczególnie przydatne, gdy nie korzysta się z klienta JS SDK (np. przy użyciu cURL lub Postman).1
+      * Ciągi znaków (Strings): param=value. Znaki specjalne (np. spacje) muszą być kodowane (np. + lub %20).1
+      * Liczby całkowite (Integers): param=value.1
+      * Wartości logiczne (Boolean): param=true lub param=false.1
+      * Daty i Daty/Czas (Date and DateTime):
+      * Data: YYYY-MM-DD (np. ?created_at=2023-02-17)
+      * Data/Czas: YYYY-MM-DDTHH:MM:SSZ (np. ?updated_at=2023-02-17T10:00:00Z).1
+      * Tablice (Array): Każda wartość tablicy musi być przekazana jako osobny parametr zapytania w formacie param=<value1>&param=<value2> lub jako lista oddzielona przecinkami param=<value1>,<value2>.1
+      * Obiekty (Object): Parametry obiektów muszą być przekazane jako oddzielne parametry zapytania w formacie param[key]=value.1
+Wpływ na wydajność i kontrolę danych: Zestaw parametrów zapytania, takich jak expand, fields, limit, offset i order, ma kluczowe znaczenie dla optymalizacji wydajności interakcji z MedusaJS API. Możliwość selektywnego rozwijania relacji i wyboru konkretnych pól pozwala znacząco zredukować rozmiar odpowiedzi API. Duże odpowiedzi zwiększają opóźnienia sieciowe, zużywają więcej przepustowości i wymagają większej mocy obliczeniowej zarówno po stronie serwera, jak i klienta. Bezpośrednio przekłada się to na szybkość i responsywność interfejsu sklepu, co jest szczególnie ważne dla użytkowników mobilnych lub tych z wolniejszym połączeniem internetowym. Ten poziom granularnej kontroli nad pobieraniem danych świadczy o zaangażowaniu MedusaJS w umożliwienie tworzenia wysoce wydajnych i spersonalizowanych doświadczeń zakupowych. Przenosi to ciężar kształtowania danych z backendu na konsumenta API, umożliwiając frontendom pobieranie dokładnie tego, czego potrzebują. Jest to cecha dobrze zaprojektowanych interfejsów REST API i jest szczególnie cenna w kontekście headless commerce, gdzie frontend jest całkowicie odseparowany i może mieć zróżnicowane wymagania dotyczące danych. Oznacza to również, że programiści muszą świadomie korzystać z tych parametrów, aby uniknąć pobierania zbyt wielu lub zbyt małej ilości danych, co mogłoby prowadzić do nieefektywnych aplikacji lub wielu niepotrzebnych wywołań API.
+Poniższa tabela podsumowuje ogólne parametry zapytania:
+Tabela 1: Ogólne Parametry Zapytania
+Nazwa Parametru
+	Cel
+	Przykładowe Użycie
+	Typy Danych
+	expand
+	Dołącza powiązane encje do odpowiedzi.
+	?expand=variants,collection 1
+	Ciąg znaków (nazwy relacji oddzielone przecinkami).
+	fields
+	Określa, które pola encji mają być zwrócone.
+	?fields=id,title,variants.prices 1
+	Ciąg znaków (nazwy pól oddzielone przecinkami).
+	limit
+	Maksymalna liczba elementów do zwrócenia.
+	?limit=20 1
+	Liczba całkowita.
+	offset
+	Liczba elementów do pominięcia (dla paginacji).
+	?offset=40 1
+	Liczba całkowita.
+	order
+	Sortuje zwrócone elementy według pola.
+	?order=created_at (rosnąco), ?order=-price (malejąco) 1
+	Ciąg znaków (nazwa pola, opcjonalnie z - dla malejąco).
+	param=value
+	Ogólne filtrowanie po wartości.
+	?title=Shirt 5
+	Ciąg znaków, Liczba całkowita, Boolean, Data, Data/Czas.
+	param=<val1>&param=<val2>
+	Filtrowanie po wielu wartościach (tablica).
+	?sales_channel_id=sc_1&sales_channel_id=sc_2 5
+	Tablica ciągów znaków.
+	param[key]=value
+	Filtrowanie po właściwości obiektu.
+	?created_at[lt]=2023-02-17 (mniej niż) 5
+	Obiekt (klucz-wartość).
+	
+
+3. Punkty Końcowe API: Produkty
+
+
+MedusaJS Store API umożliwia pobieranie kompleksowych informacji o produktach, kategoriach i kolekcjach, które stanowią rdzeń każdego storefrontu. Należy zauważyć, że szczegółowe przykłady odpowiedzi 200 OK w formacie JSON dla produktów nie są bezpośrednio dostępne w dostarczonych fragmentach dokumentacji wersji 2.8.1 W związku z tym, poniżej przedstawione zostaną reprezentatywne struktury JSON, które odzwierciedlają typowe pola encji i relacje w MedusaJS.
+Poniższa tabela podsumowuje kluczowe punkty końcowe API dla produktów:
+Tabela 3: Podsumowanie Punktów Końcowych API Produktów
+Punkt Końcowy
+	Metoda HTTP
+	Krótki Opis
+	/store/products
+	GET
+	Pobiera listę produktów dostępnych w sklepie, z możliwością filtrowania, sortowania i paginacji. 9
+	/store/products/{id}
+	GET
+	Pobiera szczegóły pojedynczego produktu po jego unikalnym identyfikatorze (ID). 13
+	/store/products/by-handle/{handle}
+	GET
+	Pobiera szczegóły pojedynczego produktu po jego uchwycie (handle). 13
+	
+
+3.1. Lista Produktów (GET /store/products)
+
+
+      * Opis: Ten punkt końcowy służy do pobierania listy wszystkich produktów dostępnych w sklepie. Wyniki mogą być filtrowane według różnych kryteriów, sortowane w określonej kolejności oraz paginowane, co pozwala na efektywne zarządzanie dużymi zbiorami danych.9
+      * Możliwe Parametry Zapytania:
+      * q (string): Służy do wyszukiwania produktów po frazie, np. w tytule lub opisie.9
+      * id (string/array): Filtruje produkty po jednym lub wielu identyfikatorach.9
+      * title (string): Umożliwia filtrowanie produktów po ich tytule.5
+      * handle (string): Filtruje produkty po ich unikalnym uchwycie.9
+      * collection_id (string/array): Filtruje produkty należące do jednej lub wielu kolekcji.9
+      * category_id (string/array): Filtruje produkty przypisane do jednej lub wielu kategorii.9
+      * tags (string/array): Filtruje produkty na podstawie przypisanych im tagów.
+      * type_id (string/array): Filtruje produkty po ich typie.
+      * sales_channel_id (string/array): Filtruje produkty dostępne w określonych kanałach sprzedaży. Warto zauważyć, że klucz API do publikacji może domyślnie określać kanał sprzedaży.5
+      * is_giftcard (boolean): Pozwala filtrować produkty, które są kartami podarunkowymi.5
+      * created_at, updated_at, deleted_at: Umożliwiają filtrowanie po dacie utworzenia, ostatniej aktualizacji lub usunięcia, z obsługą operatorów zakresu (np. created_at[lt]=YYYY-MM-DD dla daty wcześniejszej niż).5
+      * expand (string): Pozwala na rozwijanie relacji, takich jak variants (warianty produktów), collection (kolekcja, do której należy produkt), images (obrazy produktu) czy options (opcje produktu).5
+      * fields (string): Służy do wyboru konkretnych pól, które mają zostać zwrócone w odpowiedzi.5
+      * limit (integer): Określa maksymalną liczbę produktów do zwrócenia (domyślnie 100).5
+      * offset (integer): Wskazuje liczbę produktów do pominięcia w wynikach.5
+      * order (string): Definiuje pole, według którego mają być sortowane wyniki (np. created_at dla sortowania rosnącego, -title dla malejącego).5
+      * region_id, currency_code, cart_id: Te parametry są zalecane dla dokładnego ustalania cen produktów w kontekście klienta, co zapewnia wyświetlanie poprawnych cen w zależności od regionu i waluty.9
+      * Wymagane Parametry: Brak wymaganych parametrów zapytania dla podstawowej listy produktów.
+      * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/products?limit=10&offset=0&expand=variants,collection&fields=id,title,handle,variants.prices' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+      * Przykładowa Odpowiedź 200 OK (JSON - reprezentatywna struktura):
+JSON
+{
+   "products":
+               }
+           ],
+           "collection": {
+               "id": "col_01HGMJ9M2Z1X4Y5Z6A7B8C9D0H",
+               "title": "Apparel"
+           }
+       }
+   ],
+   "count": 1,
+   "offset": 0,
+   "limit": 10
+}
+
+
+
+3.2. Pobieranie Pojedynczego Produktu (GET /store/products/{id} lub GET /store/products/by-handle/{handle})
+
+
+         * Opis: Te punkty końcowe umożliwiają pobranie szczegółowych informacji o pojedynczym produkcie, identyfikując go za pomocą jego unikalnego identyfikatora (ID) lub uchwytu (handle).13
+         * Możliwe Parametry Zapytania:
+         * expand (string): Pozwala na rozwijanie relacji, takich jak variants, collection, images czy options.5
+         * fields (string): Służy do wyboru konkretnych pól, które mają zostać zwrócone w odpowiedzi.5
+         * region_id, currency_code, cart_id: Zalecane dla dokładnego ustalania cen produktów w kontekście klienta.9
+         * Wymagane Parametry:
+         * id (string, w ścieżce URL dla /store/products/{id}).13
+         * handle (string, w ścieżce URL dla /store/products/by-handle/{handle}).13
+         * Przykładowe Zapytanie (cURL - po ID):
+Bash
+curl -X GET 'http://localhost:9000/store/products/prod_01HGMJ9M2Z1X4Y5Z6A7B8C9D0E?expand=variants.options' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+         * Przykładowe Zapytanie (cURL - po uchwycie):
+Bash
+curl -X GET 'http://localhost:9000/store/products/by-handle/medusa-t-shirt?expand=variants.options' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+         * Przykładowa Odpowiedź 200 OK (JSON - reprezentatywna struktura):
+JSON
+{
+   "product": {
+       "id": "prod_01HGMJ9M2Z1X4Y5Z6A7B8C9D0E",
+       "title": "Medusa T-Shirt",
+       "subtitle": null,
+       "description": "Comfortable and stylish Medusa T-Shirt.",
+       "handle": "medusa-t-shirt",
+       "status": "published",
+       "thumbnail": "https://example.com/tshirt-thumbnail.jpg",
+       "weight": 200,
+       "length": 30,
+       "width": 20,
+       "height": 2,
+       "origin_country": "US",
+       "material": "Cotton",
+       "created_at": "2023-10-26T10:00:00.000Z",
+       "updated_at": "2023-10-26T10:00:00.000Z",
+       "deleted_at": null,
+       "metadata": {},
+       "variants":,
+               "prices":
+           }
+       ],
+       "options":,
+       "images":,
+       "thumbnail_url": "https://example.com/tshirt-thumbnail.jpg",
+       "collection": {
+           "id": "col_01HGMJ9M2Z1X4Y5Z6A7B8C9D0H",
+           "title": "Apparel",
+           "handle": "apparel",
+           "created_at": "2023-10-26T10:00:00.000Z",
+           "updated_at": "2023-10-26T10:00:00.000Z",
+           "deleted_at": null,
+           "metadata": null
+       },
+       "tags":,
+       "type": null
+   }
+}
+
+Znaczenie zrozumienia modelu danych: Brak bezpośrednio dostępnych, kompleksowych przykładów odpowiedzi JSON 200 OK w dostarczonych fragmentach dokumentacji dla produktów 1 podkreśla kluczowy aspekt pracy z platformami headless commerce, takimi jak MedusaJS: programista musi mieć głębokie zrozumienie bazowego modelu danych. W przeciwieństwie do monolitycznych platform, które mogą oferować sztywne, predefiniowane odpowiedzi API, MedusaJS kładzie nacisk na elastyczność i możliwość dostosowania.2 Oznacza to, że dokładna struktura obiektu produktu w działającej aplikacji może się różnić w zależności od niestandardowych pól, zainstalowanych wtyczek i konfiguracji modułów. Parametry
+expand i fields 1 nie są jedynie opcjonalnymi filtrami, ale niezbędnymi narzędziami do kształtowania odpowiedzi tak, aby odpowiadały
+konkretnemu modelowi danych danej instancji MedusaJS. To implikuje, że programiści powinni konsultować kod źródłowy MedusaJS, generowane specyfikacje OpenAPI 15 lub własne definicje danych backendu, aby w pełni zrozumieć dostępne pola i ich relacje. Uproszczona dokumentacja może dostarczyć
+reprezentatywny przykład, ale ostatecznym źródłem prawdy dla konkretnego wdrożenia jest rzeczywisty schemat backendu. Ta elastyczność jest potężna, ale wymaga od implementatora głębszego zrozumienia technicznego.
+
+
+4. Punkty Końcowe API: Zamówienia
+
+
+MedusaJS Store API umożliwia klientom przeglądanie i zarządzanie ich zamówieniami. Zamówienia są zazwyczaj tworzone w wyniku procesu koszyka zakupowego, często za pośrednictwem CartsResource.16
+Poniższa tabela podsumowuje kluczowe punkty końcowe API dla zamówień:
+Tabela 4: Podsumowanie Punktów Końcowych API Zamówień
+Punkt Końcowy
+	Metoda HTTP
+	Krótki Opis
+	Wymagana Autentykacja
+	/store/orders/{id}
+	GET
+	Pobiera szczegóły pojedynczego zamówienia po jego ID. 17
+	Nie (może być używane dla gości)
+	/store/orders?display_id={display_id}&email={email}
+	GET
+	Odnajduje zamówienie po jego ID wyświetlania i adresie e-mail. 17
+	Nie (dla gości i zalogowanych)
+	/store/orders/cart/{cart_id}
+	GET
+	Pobiera zamówienie powiązane z danym ID koszyka. 17
+	Nie (dla gości i zalogowanych)
+	/store/customers/me/orders
+	GET
+	Pobiera listę wszystkich zamówień złożonych przez zalogowanego klienta. 10
+	Tak (autentykacja klienta)
+	
+
+4.1. Pobieranie Zamówienia po ID (GET /store/orders/{id})
+
+
+            * Opis: Ten punkt końcowy służy do pobierania szczegółowych informacji o pojedynczym zamówieniu, identyfikując je za pomocą jego unikalnego identyfikatora (ID). Jest to szczególnie przydatne na stronach prezentujących detale zamówienia.17
+            * Możliwe Parametry Zapytania:
+            * expand (string): Umożliwia rozwijanie relacji, takich jak items (pozycje zamówienia), shipping_address (adres wysyłki) czy customer (dane klienta).
+            * fields (string): Pozwala na wybór konkretnych pól, które mają zostać zwrócone w odpowiedzi.
+            * Wymagane Parametry:
+            * id (string, w ścieżce URL).17
+            * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/orders/order_01HGMJ9M2Z1X4Y5Z6A7B8C9D0K?expand=items,shipping_address' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+            * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "order": {
+       "id": "order_01HGMJ9M2Z1X4Y5Z6A7B8C9D0K",
+       "display_id": 1001,
+       "status": "pending",
+       "fulfillment_status": "not_fulfilled",
+       "payment_status": "awaiting",
+       "cart_id": "cart_01HGMJ9M2Z1X4Y5Z6A7B8C9D0L",
+       "customer_id": "cus_01HGMJ9M2Z1X4Y5Z6A7B8C9D0M",
+       "email": "customer@example.com",
+       "region_id": "reg_01HGMJ9M2Z1X4Y5Z6A7B8C9D0N",
+       "currency_code": "usd",
+       "total": 5000,
+       "subtotal": 4500,
+       "shipping_total": 500,
+       "discount_total": 0,
+       "tax_total": 0,
+       "created_at": "2023-10-26T10:30:00.000Z",
+       "updated_at": "2023-10-26T10:30:00.000Z",
+       "items":,
+       "shipping_address": {
+           "id": "addr_01HGMJ9M2Z1X4Y5Z6A7B8C9D0Q",
+           "first_name": "John",
+           "last_name": "Doe",
+           "address_1": "123 Main St",
+           "city": "Anytown",
+           "province": "CA",
+           "postal_code": "90210",
+           "country_code": "us",
+           "phone": "555-123-4567"
+       }
+   }
+}
+
+
+
+4.2. Pobieranie Zamówienia po ID Wyświetlania i E-mailu (GET /store/orders?display_id={display_id}&email={email})
+
+
+               * Opis: Ten punkt końcowy umożliwia odnalezienie zamówienia za pomocą jego ID wyświetlania (często krótki, łatwy do zapamiętania numer, np. numer zamówienia) oraz adresu e-mail klienta, który złożył zamówienie.17
+               * Możliwe Parametry Zapytania:
+               * expand (string): Rozwijanie relacji.
+               * fields (string): Wybór konkretnych pól.
+               * Wymagane Parametry:
+               * display_id (integer, w parametrze zapytania).17
+               * email (string, w parametrze zapytania).17
+               * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/orders?display_id=1001&email=customer@example.com' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+               * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "order": {
+       "id": "order_01HGMJ9M2Z1X4Y5Z6A7B8C9D0K",
+       "display_id": 1001,
+       "status": "pending",
+       "email": "customer@example.com",
+       "total": 5000,
+       "created_at": "2023-10-26T10:30:00.000Z"
+   }
+}
+
+
+
+4.3. Pobieranie Zamówienia po ID Koszyka (GET /store/orders/cart/{cart_id})
+
+
+                  * Opis: Ten punkt końcowy pobiera szczegóły zamówienia, które jest powiązane z określonym identyfikatorem koszyka. Jest to szczególnie przydatne po finalizacji zakupu, aby szybko uzyskać dostęp do danych zamówienia na podstawie ID koszyka, z którego zostało utworzone.17
+                  * Możliwe Parametry Zapytania:
+                  * expand (string): Rozwijanie relacji.
+                  * fields (string): Wybór konkretnych pól.
+                  * Wymagane Parametry:
+                  * cart_id (string, w ścieżce URL).17
+                  * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/orders/cart/cart_01HGMJ9M2Z1X4Y5Z6A7B8C9D0L' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+                  * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "order": {
+       "id": "order_01HGMJ9M2Z1X4Y5Z6A7B8C9D0K",
+       "display_id": 1001,
+       "cart_id": "cart_01HGMJ9M2Z1X4Y5Z6A7B8C9D0L",
+       "status": "pending",
+       "total": 5000
+   }
+}
+
+
+
+4.4. Lista Zamówień Klienta (GET /store/customers/me/orders)
+
+
+                     * Opis: Ten punkt końcowy pobiera listę wszystkich zamówień złożonych przez aktualnie zalogowanego klienta. Jest to typowa funkcjonalność do wyświetlania historii zamówień w profilu klienta.10
+                     * Wymagana Autentykacja: Tak, to żądanie wymaga, aby klient był uwierzytelniony (za pomocą tokena JWT lub sesji Cookie).10
+                     * Możliwe Parametry Zapytania:
+                     * limit (integer): Maksymalna liczba zamówień do zwrócenia.
+                     * offset (integer): Liczba zamówień do pominięcia.
+                     * status (string/array): Filtrowanie po statusie zamówienia (np. completed, pending).
+                     * fulfillment_status (string/array): Filtrowanie po statusie realizacji zamówienia.
+                     * payment_status (string/array): Filtrowanie po statusie płatności.
+                     * expand (string): Rozwijanie relacji.
+                     * fields (string): Wybór konkretnych pól.
+                     * order (string): Pole do sortowania.
+                     * Wymagane Parametry: Brak, poza wymogiem autentykacji.
+                     * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/customers/me/orders?limit=5&status=completed' \
+-H 'Authorization: Bearer {your_jwt_token}' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+                     * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "orders":,
+   "count": 2,
+   "offset": 0,
+   "limit": 5
+}
+
+Znaczenie kontekstu klienta w projektowaniu API: Różnorodność punktów końcowych do pobierania zamówień – po ID, po ID wyświetlania i e-mailu, po ID koszyka oraz dla uwierzytelnionego klienta – podkreśla koncentrację MedusaJS na wspieraniu zróżnicowanych ścieżek zakupowych i interakcji w sklepie.16 Pobieranie zamówienia za pomocą ID wyświetlania i adresu e-mail jest kluczowe dla obsługi zamówień złożonych przez gości, którzy nie posiadają konta, ale potrzebują śledzić swoje zakupy. Pobieranie po ID koszyka jest niezbędne do płynnego przejścia od koszyka do potwierdzonego zamówienia. Natomiast punkt końcowy
+/customers/me/orders, wymagający autentykacji, stanowi podstawę sekcji "Moje zamówienia" w profilu zalogowanego klienta. To wieloaspektowe podejście zapewnia, że API może bezproblemowo obsługiwać zarówno anonimowe, jak i uwierzytelnione przepływy użytkowników. Taki wzorzec projektowy odzwierciedla dojrzałe rozumienie przez platformę e-commerce, że dostęp do danych klienta musi być kontekstowy i bezpieczny. Oznacza to, że programiści tworzący interfejsy sklepów muszą starannie rozważyć stan autentykacji użytkownika i specyficzny kontekst jego żądania (np. gość vs. zalogowany), aby użyć najbardziej odpowiedniego punktu końcowego API, zapewniając zarówno funkcjonalność, jak i prywatność danych. Sugeruje to również, że wewnętrzna architektura MedusaJS jest zaprojektowana do efektywnego obsługiwania różnych wzorców dostępu do tych samych bazowych danych zamówień.
+
+
+5. Punkty Końcowe API: Klienci
+
+
+MedusaJS Store API udostępnia kompleksowe funkcjonalności do zarządzania kontami klientów. Obejmuje to procesy takie jak rejestracja nowych użytkowników, logowanie, aktualizacja danych profilowych oraz procedury resetowania hasła.
+Poniższa tabela podsumowuje kluczowe punkty końcowe API dla klientów:
+Tabela 5: Podsumowanie Punktów Końcowych API Klientów
+Punkt Końcowy
+	Metoda HTTP
+	Krótki Opis
+	Wymagana Autentykacja
+	/store/customers
+	POST
+	Rejestruje nowego klienta i automatycznie go autentykuje. 18
+	Nie
+	/store/auth
+	POST
+	Autentykuje klienta za pomocą e-maila i hasła. 1
+	Nie
+	/store/customers/me
+	GET
+	Pobiera szczegóły profilu zalogowanego klienta. 10
+	Tak (autentykacja klienta)
+	/store/customers/me
+	POST
+	Aktualizuje dane profilu zalogowanego klienta. 10
+	Tak (autentykacja klienta)
+	/store/customers/password-token
+	POST
+	Inicjuje proces resetowania hasła, wysyłając token na e-mail klienta. 18
+	Nie
+	/store/customers/password-reset
+	POST
+	Finalizuje proces resetowania hasła za pomocą otrzymanego tokena. 18
+	Nie
+	
+
+5.1. Tworzenie Klienta (POST /store/customers)
+
+
+                        * Opis: Ten punkt końcowy służy do rejestracji nowego klienta w systemie sklepu. Po pomyślnej rejestracji, klient jest automatycznie uwierzytelniany, a jego sesja logowania zostaje ustawiona.10
+                        * Możliwe Parametry Ciała Zapytania:
+                        * first_name (string, wymagane).19
+                        * last_name (string, wymagane).19
+                        * email (string, wymagane, musi być unikalne).19
+                        * password (string, wymagane).19
+                        * phone (string, opcjonalne).20
+                        * metadata (object, opcjonalne).
+                        * Wymagane Parametry: email, password, first_name, last_name.19
+                        * Przykładowe Zapytanie (cURL):
+Bash
+curl -X POST 'http://localhost:9000/store/customers' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "first_name": "Jane",
+   "last_name": "Doe",
+   "email": "jane.doe@example.com",
+   "password": "securepassword123"
+}'
+
+                        * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "customer": {
+       "id": "cus_01HGMJ9M2Z1X4Y5Z6A7B8C9D0T",
+       "email": "jane.doe@example.com",
+       "first_name": "Jane",
+       "last_name": "Doe",
+       "billing_address_id": null,
+       "phone": null,
+       "has_account": true,
+       "created_at": "2023-10-26T11:00:00.000Z",
+       "updated_at": "2023-10-26T11:00:00.000Z",
+       "groups":,
+       "shipping_addresses":,
+       "orders":
+   }
+}
+
+
+
+5.2. Logowanie Klienta (POST /store/auth)
+
+
+                           * Opis: Ten punkt końcowy służy do autentykacji klienta poprzez podanie adresu e-mail i hasła. W zależności od konfiguracji, operacja ta może skutkować utworzeniem sesji opartej na ciasteczkach lub zwróceniem tokena JWT.1
+                           * Możliwe Parametry Ciała Zapytania:
+                           * email (string, wymagane).19
+                           * password (string, wymagane).19
+                           * Wymagane Parametry: email, password.19
+                           * Przykładowe Zapytanie (cURL):
+Bash
+curl -X POST 'http://localhost:9000/store/auth' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "email": "jane.doe@example.com",
+   "password": "securepassword123"
+}'
+
+                           * Przykładowa Odpowiedź 200 OK (JSON - dla JWT):
+JSON
+{
+   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcl9pZCI6ImN1c18wMUczU0czMEo4Qzg1UzRBNUMyTUwyUzFOUzIiLCJkb21haW5faWQiOiJkb21fMDEzNDU2Nzg5MDEyMzQ1Njc4OTAiLCJpYXQiOjE2NzgwNTY2NzcsImV4cCI6MTY3ODE0MzA3N30.signature"
+}
+
+(Dla sesji Cookie, odpowiedź może być pusta lub zawierać obiekt klienta, a ciasteczko będzie w nagłówku Set-Cookie)
+
+
+5.3. Pobieranie Danych Bieżącego Klienta (GET /store/customers/me)
+
+
+                              * Opis: Ten punkt końcowy umożliwia pobranie szczegółowych informacji profilowych aktualnie zalogowanego klienta.10
+                              * Wymagana Autentykacja: Tak, to żądanie wymaga, aby klient był uwierzytelniony (za pomocą tokena JWT lub sesji Cookie).10
+                              * Możliwe Parametry Zapytania:
+                              * expand (string): Rozwijanie relacji, takich jak shipping_addresses (adresy wysyłki), billing_address (adres rozliczeniowy) czy orders (zamówienia klienta).
+                              * fields (string): Wybór konkretnych pól do zwrócenia.
+                              * Wymagane Parametry: Brak, poza wymogiem autentykacji.
+                              * Przykładowe Zapytanie (cURL):
+Bash
+curl -X GET 'http://localhost:9000/store/customers/me?expand=shipping_addresses' \
+-H 'Authorization: Bearer {your_jwt_token}' \
+-H 'x-publishable-api-key: {your_publishable_api_key}'
+
+                              * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "customer": {
+       "id": "cus_01HGMJ9M2Z1X4Y5Z6A7B8C9D0T",
+       "email": "jane.doe@example.com",
+       "first_name": "Jane",
+       "last_name": "Doe",
+       "phone": null,
+       "has_account": true,
+       "created_at": "2023-10-26T11:00:00.000Z",
+       "updated_at": "2023-10-26T11:05:00.000Z",
+       "shipping_addresses":
+   }
+}
+
+
+
+5.4. Aktualizacja Danych Bieżącego Klienta (POST /store/customers/me)
+
+
+                                 * Opis: Ten punkt końcowy umożliwia aktualizację danych profilowych aktualnie zalogowanego klienta.10
+                                 * Wymagana Autentykacja: Tak, to żądanie wymaga autentykacji klienta.
+                                 * Możliwe Parametry Ciała Zapytania: Dowolne z pól klienta, które mogą być modyfikowane (np. first_name, last_name, phone, password, billing_address, shipping_addresses).19
+                                 * Wymagane Parametry: Brak, poza wymogiem autentykacji. Należy podać przynajmniej jedno pole do aktualizacji.
+                                 * Przykładowe Zapytanie (cURL):
+Bash
+curl -X POST 'http://localhost:9000/store/customers/me' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer {your_jwt_token}' \
+--data-raw '{
+   "first_name": "Janet",
+   "phone": "555-111-2222"
+}'
+
+                                 * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "customer": {
+       "id": "cus_01HGMJ9M2Z1X4Y5Z6A7B8C9D0T",
+       "email": "jane.doe@example.com",
+       "first_name": "Janet",
+       "last_name": "Doe",
+       "phone": "555-111-2222",
+       "has_account": true,
+       "created_at": "2023-10-26T11:00:00.000Z",
+       "updated_at": "2023-10-26T11:10:00.000Z"
+   }
+}
+
+
+
+5.5. Żądanie Resetowania Hasła (POST /store/customers/password-token)
+
+
+                                    * Opis: Ten punkt końcowy inicjuje proces resetowania hasła. Wysyła unikalny token resetowania na adres e-mail klienta, który będzie potrzebny do finalizacji resetowania hasła.18
+                                    * Wymagana Autentykacja: Brak.
+                                    * Możliwe Parametry Ciała Zapytania:
+                                    * email (string, wymagane).19
+                                    * Wymagane Parametry: email.19
+                                    * Przykładowe Zapytanie (cURL):
+Bash
+curl -X POST 'http://localhost:9000/store/customers/password-token' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "email": "jane.doe@example.com"
+}'
+
+                                    * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{}
+
+(Zazwyczaj pusta odpowiedź, wskazująca na sukces operacji; token jest wysyłany na e-mail. Status 200 OK.)
+
+
+5.6. Resetowanie Hasła (POST /store/customers/password-reset)
+
+
+                                       * Opis: Ten punkt końcowy służy do finalizacji procesu resetowania hasła. Umożliwia ustawienie nowego hasła dla konta klienta, wykorzystując wcześniej otrzymany token resetowania.18
+                                       * Wymagana Autentykacja: Brak.
+                                       * Możliwe Parametry Ciała Zapytania:
+                                       * email (string, wymagane).19
+                                       * password (string, wymagane).19
+                                       * token (string, wymagane).19
+                                       * Wymagane Parametry: email, password, token.19
+                                       * Przykładowe Zapytanie (cURL):
+Bash
+curl -X POST 'http://localhost:9000/store/customers/password-reset' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+   "email": "jane.doe@example.com",
+   "password": "new_secure_password",
+   "token": "reset_token_from_email"
+}'
+
+                                       * Przykładowa Odpowiedź 200 OK (JSON):
+JSON
+{
+   "customer": {
+       "id": "cus_01HGMJ9M2Z1X4Y5Z6A7B8C9D0T",
+       "email": "jane.doe@example.com",
+       "first_name": "Janet",
+       "last_name": "Doe",
+       "has_account": true,
+       "updated_at": "2023-10-26T11:15:00.000Z"
+   }
+}
+
+Równowaga między bezpieczeństwem a doświadczeniem użytkownika w zarządzaniu klientami: Projektowanie tych tras API dla klientów odzwierciedla staranne wyważenie między bezpieczeństwem a doświadczeniem użytkownika. Na przykład, wymóg unikalności adresu e-mail podczas rejestracji 19 jest standardową praktyką bezpieczeństwa, mającą na celu zapobieganie duplikacji kont. Dwustopniowy proces resetowania hasła (żądanie tokena, a następnie użycie go do resetowania) jest powszechnym wzorcem bezpieczeństwa, zapobiegającym nieautoryzowanemu dostępowi. Jednocześnie, automatyczna autentykacja po rejestracji 19 oraz punkt końcowy
+/customers/me 10 poprawiają doświadczenie użytkownika, upraszczając natychmiastowe działania po rejestracji i zapewniając zalogowanym użytkownikom łatwy sposób zarządzania swoimi danymi. To świadczy o tym, że MedusaJS jest zbudowana z myślą o typowych protokołach bezpieczeństwa e-commerce i przepływach użytkowników, zmniejszając obciążenie programistów związane z implementacją tych wrażliwych funkcjonalności od podstaw. Oznacza to jednak również, że programiści muszą odpowiednio zabezpieczyć swoje klucze API i zarządzać tokenami JWT/ciasteczkami po stronie klienta, aby zachować integralność procesu autentykacji, ponieważ system opiera się na tych zewnętrznych komponentach w zakresie bezpieczeństwa. Platforma dostarcza narzędzia, ale odpowiedzialność za implementację spoczywa na programiście.
+
+
+6. Podsumowanie
+
+
+MedusaJS v2.8 Store API stanowi elastyczne i potężne narzędzie do budowy nowoczesnych storefrontów e-commerce. Platforma ta kładzie nacisk na modułowość i możliwość głębokiego dostosowania, co pozwala deweloperom na tworzenie unikalnych i wydajnych doświadczeń zakupowych.
+Kluczowe aspekty MedusaJS Store API obejmują:
+                                          * Wszechstronne mechanizmy autentykacji: Dostępność tokenów JWT, sesji Cookie ID oraz kluczy API do publikacji umożliwia wspieranie różnorodnych architektur frontendowych, od aplikacji Jamstack po tradycyjne witryny internetowe. Ta elastyczność w autentykacji jest fundamentalnym elementem, który pozwala deweloperom na wybór optymalnego rozwiązania dla ich konkretnego przypadku użycia, jednocześnie zapewniając bezpieczeństwo i skalowalność.
+                                          * Zaawansowane parametry zapytania: Ogólne parametry, takie jak expand, fields, limit, offset i order, są niezwykle ważne dla optymalizacji wydajności i precyzyjnej kontroli nad zwracanymi danymi. Umożliwiają one zmniejszenie rozmiaru odpowiedzi API, minimalizując obciążenie sieciowe i poprawiając responsywność aplikacji. Ta granularna kontrola nad danymi jest cechą charakterystyczną dobrze zaprojektowanych interfejsów API w kontekście headless commerce.
+                                          * Kompleksowe punkty końcowe dla kluczowych encji: Dla podstawowych encji e-commerce, takich jak Produkty, Zamówienia i Klienci, dostępne są punkty końcowe umożliwiające podstawowe operacje CRUD (Create, Read, Update), a także specyficzne funkcjonalności, takie jak zarządzanie kontem klienta czy śledzenie zamówień. Różnorodność metod pobierania zamówień (np. po ID, po ID wyświetlania dla gości, po ID koszyka, dla zalogowanego klienta) świadczy o przemyślanym projekcie API, które uwzględnia różne ścieżki użytkownika i konteksty dostępu do danych.
+
+
+Dalsze Kroki i Zasoby
+
+
+Należy podkreślić, że ze względu na wysoce konfigurowalny charakter MedusaJS, dokładna struktura danych i dostępne pola mogą się różnić w zależności od konkretnego wdrożenia, wtyczek i niestandardowych modułów. Z tego powodu, najbardziej precyzyjną i "uproszczoną" dokumentacją dla danej instancji MedusaJS jest często ta, która jest generowana bezpośrednio z jej specyfikacji OpenAPI.
+W przypadku potrzeby uzyskania bardziej szczegółowych informacji, zwłaszcza dotyczących dokładnych struktur danych i wszystkich dostępnych pól, zaleca się konsultację z oficjalną dokumentacją OpenAPI (Swagger) dla MedusaJS.15 Możliwe jest wygenerowanie lokalnego pliku
+store.oas.json za pomocą narzędzia @medusajs/medusa-oas-cli.22 To podejście zapewnia dostęp do najbardziej aktualnych i precyzyjnych definicji API, które odzwierciedlają konkretną konfigurację Twojego backendu MedusaJS.
+Oficjalna dokumentacja MedusaJS dostępna pod adresem docs.medusajs.com pozostaje również najlepszym źródłem dla pogłębionych przewodników, samouczków i przykładów użycia Medusa JS SDK.1
+Charakter dokumentacji API w headless commerce: Sytuacja, w której bezpośrednie, kompleksowe przykłady odpowiedzi API (zwłaszcza 200 OK) nie zawsze są łatwo dostępne w ogólnej dokumentacji dla wersji 2.8, a także istnieją znane problemy z hostowanymi specyfikacjami OpenAPI dla wersji 1 1, jednocześnie istnieją narzędzia do lokalnego generowania specyfikacji OpenAPI 15, podkreśla "żywy" i dynamiczny charakter dokumentacji API dla platform wysoce konfigurowalnych, takich jak MedusaJS. W przeciwieństwie do statycznych interfejsów API, gdzie dokumentacja może być stałym artefaktem, rozszerzalność MedusaJS oznacza, że
+rzeczywista powierzchnia API (dostępne pola, relacje, niestandardowe punkty końcowe) może się znacznie różnić między wdrożeniami z powodu wtyczek, niestandardowych modułów i nadpisań.2 Dlatego najbardziej dokładna i "uproszczona" dokumentacja dla konkretnej instancji MedusaJS jest często tą, która jest generowana bezpośrednio ze
+specyfikacji OpenAPI tej instancji. To implikuje zmianę w sposobie, w jaki programiści powinni podchodzić do dokumentacji API dla takich platform. Zamiast polegać wyłącznie na ogólnych dokumentach online, powinni wykorzystywać narzędzia dostarczane przez platformę (takie jak medusa-oas-cli) do generowania odniesień API dostosowanych do ich konkretnej implementacji backendu. Daje to programistom najbardziej precyzyjne informacje, zmniejszając błędy integracji i przyspieszając rozwój, ale także nakłada na nich odpowiedzialność za utrzymanie i konsultowanie własnej generowanej dokumentacji. Jest to potężna funkcja dla dostosowywania, ale wymaga bardziej aktywnej roli od programisty w utrzymaniu zrozumienia API.
