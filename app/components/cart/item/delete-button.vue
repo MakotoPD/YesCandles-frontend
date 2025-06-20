@@ -18,7 +18,7 @@ const removeItem = async () => {
   loading.value = true
   try {
     await cartStore.removeItem(item.id)
-    // Zauważ że cartStore.removeItem zawiera już fetchCart aby odświeżyć koszyk po usunięciu
+    // Zauważ że cartStore.removeItem zawiera już retrieveCart aby odświeżyć koszyk po usunięciu
     loading.value = false
   } catch (error) {
     console.error('Błąd podczas usuwania przedmiotu:', error)

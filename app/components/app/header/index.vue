@@ -11,7 +11,7 @@ const { data: categoriesData, pending } = useFetch('/api/categories')
 import { storeToRefs } from 'pinia';
 
 const authStore = useAuthStore()
-const { isAuthenticated, customer } = storeToRefs(authStore)
+const { isLoggedIn , customer } = storeToRefs(authStore)
 
 // Transform categories for display
 const categories = computed(() => {
@@ -105,7 +105,7 @@ const categories = computed(() => {
             class="header-link relative"
           >
             <ClientOnly>
-              <div v-if="isAuthenticated && customer" class="flex items-center gap-2">
+              <div v-if="isLoggedIn && customer" class="flex items-center gap-2">
                 <span class="hidden lg:inline">{{ customer.first_name }} {{ customer.last_name[0] }}.</span>
                 <Icon name="i-lucide-user" size="18" />
               </div>

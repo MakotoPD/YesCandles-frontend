@@ -1,7 +1,8 @@
 import type { StorePaymentCollection } from '@medusajs/types'
+import { useCartStore } from '~/stores/cart'
 
 export const useInitiatePaymentSession = () => {
-  const { initiatePaymentSession } = usePaymentSession()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<StorePaymentCollection>()
@@ -10,7 +11,8 @@ export const useInitiatePaymentSession = () => {
     loading.value = true
 
     try {
-      data.value = await initiatePaymentSession(provider_id)
+      // Używamy Pinia store zamiast composables/data.ts
+      data.value = await cartStore.initiatePaymentSession(provider_id)
     }
     catch (error) {
       console.error('Error initiating payment session:', error)

@@ -45,7 +45,6 @@ const onSubmit = async (_event: FormSubmitEvent<FormType>) => {
     // Automatically switch to login form after 3 seconds
     setTimeout(() => {
       switchToSignin()
-      authStore.clearSuccessMessage() // Clean up success message after switching
     }, 3000)
   }
 }
@@ -57,8 +56,7 @@ const switchToSignin = () => {
 
 // Clear any existing messages when the component is unmounted
 onUnmounted(() => {
-  authStore.clearActionError()
-  authStore.clearSuccessMessage()
+  authStore.clearError()
 })
 </script>
 

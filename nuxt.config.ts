@@ -4,6 +4,18 @@ import type { StoreRegion } from '@medusajs/types'
 export default defineNuxtConfig({
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
+
+  sourcemap: {
+    server: true,
+    client: true
+  },
+
+  // Jeśli używasz Vite
+  vite: {
+    build: {
+      sourcemap: true
+    }
+  },
   modules: [
     '@nuxt/image',
     '@nuxt/fonts',
@@ -73,12 +85,10 @@ export default defineNuxtConfig({
   },
 
   medusa: {
-    baseUrl: process.env.MEDUSA_URL || 'http://localhost:9000',
+    baseUrl: process.env.MEDUSA_BACKEND_URL || 'http://localhost:9000',
     global: true,
     server: true,
-    debug: false,
     publishableKey: process.env.MEDUSA_PUBLISHABLE_KEY,
-
   },
 
   // No country-specific routes since the site is only in Polish
@@ -96,7 +106,7 @@ export default defineNuxtConfig({
     public: {
       stripeKey: process.env.NUXT_PUBLIC_STRIPE_KEY || '',
       medusa: {
-        baseUrl: process.env.MEDUSA_URL || 'http://localhost:9000',
+        baseUrl: process.env.MEDUSA_BACKEND_URL || 'http://localhost:9000',
         publishableKey: process.env.MEDUSA_PUBLISHABLE_KEY || '',
       },
     },

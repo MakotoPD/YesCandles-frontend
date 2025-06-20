@@ -15,7 +15,7 @@ console.log('Checkout page - current cart:', cart.value)
 
 // Odśwież koszyk przy każdym wejściu na stronę zamówienia
 onMounted(async () => {
-  await cartStore.fetchCart()
+  await cartStore.retrieveCart()
   console.log('Checkout page - cart after fetch:', cart.value)
 })
 </script>

@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 const cartStore = useCartStore()
 
 // Ważne: używamy storeToRefs aby dane z Pinia były reaktywne!
-const { cart, items, isLoading } = storeToRefs(cartStore)
+const { cart, items, loading } = storeToRefs(cartStore)
 
 // Sprawdzanie czy koszyk jest pusty
 const isCartEmpty = computed(() => {
@@ -17,12 +17,12 @@ console.log('Current cart state:', {
   cart: cart.value,
   items: items.value,
   isEmpty: isCartEmpty.value,
-  isLoading: isLoading.value
+  loading: loading.value
 })
 
 // Odśwież koszyk na początku oraz przy każdej zmianie routy
 onMounted(async () => {
-  await cartStore.fetchCart()
+  await cartStore.retrieveCart()
   console.log('Cart after fetch:', {
     cart: cart.value,
     items: items.value,

@@ -12,7 +12,7 @@
       </div>
   
       <!-- Loading State -->
-      <div v-if="pending" class="flex flex-col items-center justify-center py-20">
+      <div v-if="loading" class="flex flex-col items-center justify-center py-20">
         <div class="relative">
           <div class="w-16 h-16 border-4 border-pink-200 border-t-pink-600 rounded-full animate-spin"></div>
           <div class="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-rose-400 rounded-full animate-spin animate-reverse"></div>
@@ -99,7 +99,7 @@
                   <h3 class="text-xl font-semibold text-gray-900">Dane osobowe</h3>
                 </div>
   
-                <UForm :state="profileForm" @submit="handleUpdateProfile" class="space-y-6">
+                <UForm :state="profileForm" @submit.prevent="handleUpdateProfile" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <UFormField label="Imię" :error="profileErrors.first_name">
                                 <UInput
@@ -136,7 +136,7 @@
                                 :error="!!profileErrors.email"
                                 />
                             </UFormField>
-                            <UFormField label="Telefon" :error="profileErrors.phone">
+                            <UFormField label="Telefon" :error="profileErrors?.phone">
                                 <UInput
                                 v-model="profileForm.phone"
                                 type="tel"
@@ -144,18 +144,18 @@
                                 placeholder="Wprowadź numer telefonu"
                                 color="pink"
                                 class="w-full"
-                                :error="!!profileErrors.phone"
+                                :error="!!profileErrors?.phone"
                                 />
                             </UFormField>
                     </div>
-                        <UFormField label="Data urodzenia" :error="profileErrors.metadata.date_of_birth">
+                        <UFormField label="Data urodzenia" :error="profileErrors?.metadata?.date_of_birth">
                             <UInput
                             v-model="profileForm.metadata.date_of_birth"
                             type="date"
                             icon="i-heroicons-calendar-days"
                             color="pink"
                             class="w-full"
-                            :error="!!profileErrors.metadata.date_of_birth"
+                            :error="!!profileErrors?.metadata?.date_of_birth"
                             />
                         </UFormField>
                     <div class="flex justify-end mt-4">
@@ -188,7 +188,7 @@
                     color="pink"
                     variant="soft"
                     icon="i-heroicons-plus"
-                    @click="startAddingNewAddress"
+                    @click="openAddAddressForm"
                   >
                     Dodaj nowy adres
                   </UButton>
@@ -228,7 +228,7 @@
                           variant="ghost"
                           icon="i-heroicons-pencil"
                           size="sm"
-                          @click="editAddress(address)"
+                          @click="openEditAddressForm(address)"
                         >
                           Edytuj
                         </UButton>
@@ -237,7 +237,7 @@
                           variant="ghost"
                           icon="i-heroicons-trash"
                           size="sm"
-                          @click="deleteAddress(address.id)"
+                          @click="handleDeleteAddress(address.id)"
                         >
                           Usuń
                         </UButton>
@@ -251,14 +251,14 @@
                   <p class="text-gray-600 mb-4">Nie masz jeszcze zapisanych adresów</p>
                   <UButton
                     color="pink"
-                    @click="startAddingNewAddress"
+                    @click="openAddAddressForm"
                     icon="i-heroicons-plus"
                   >
                     Dodaj adres
                   </UButton>
                 </div>
 
-                <UForm v-if="isAddingNewAddress || isEditingAddress" :state="addressForm" @submit="handleSaveAddress" class="space-y-6">
+                <UForm v-if="isAddingNewAddress || isEditingAddress" :state="addressForm" @submit.prevent="handleSaveAddress" class="space-y-6">
                   <div class="flex items-center justify-between mb-4">
                     <h4 class="text-lg font-medium text-gray-900">
                       {{ isEditingAddress ? 'Edytuj adres' : 'Dodaj nowy adres' }}
@@ -403,86 +403,6 @@
               </div>
             </template>
             
-            <!-- Orders Tab -->
-            <template #orders="{ item }">
-              <div class="space-y-6 p-6">
-                <div class="flex items-center space-x-3 mb-6">
-                  <UIcon name="i-heroicons-shopping-bag" class="w-6 h-6 text-pink-600" />
-                  <h3 class="text-xl font-semibold text-gray-900">Twoje zamówienia</h3>
-                </div>
-                
-                <div v-if="isLoadingOrders" class="flex justify-center py-8">
-                  <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-pink-500" />
-                </div>
-                
-                <div v-else-if="orders.length === 0" class="bg-gray-50 rounded-lg p-8 text-center">
-                  <UIcon name="i-heroicons-shopping-bag" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                  <h4 class="text-lg font-medium text-gray-900">Brak zamówień</h4>
-                  <p class="text-gray-500 mt-2">Nie masz jeszcze żadnych zamówień.</p>
-                  <UButton to="/sklep" color="pink" class="mt-4 bg-pink-200 hover:bg-pink-400 transition-all duration-300">
-                    Przejdź do sklepu
-                  </UButton>
-                </div>
-                
-                <div v-else class="space-y-4">
-                  <UCard v-for="order in orders" :key="order.id" class="border border-gray-200 hover:border-pink-200 transition-all">
-                    <div class="flex justify-between items-start">
-                      <div>
-                        <div class="flex items-center gap-2 mb-2">
-                          <p class="font-medium text-pink-600">Zamówienie #{{ order.display_id }}</p>
-                          <UBadge :color="getOrderStatusColor(order.status)" size="sm" variant="subtle">
-                            {{ translateOrderStatus(order.status) }}
-                          </UBadge>
-                        </div>
-                        <p class="text-gray-600">Data: {{ formatDate(order.created_at) }}</p>
-                        <p class="text-gray-600">Produkty: {{ order.items.length }}</p>
-                        <p class="font-medium mt-1">Suma: {{ formatPrice(order.total) }}</p>
-                      </div>
-                      <UButton 
-                        size="sm" 
-                        color="gray" 
-                        variant="ghost" 
-                        icon="i-heroicons-eye"
-                        :to="`/zamowienia/${order.id}`"
-                      >
-                        Szczegóły
-                      </UButton>
-                    </div>
-                  </UCard>
-                  
-                  <!-- Pagination -->
-                  <div class="flex justify-between items-center pt-4">
-                    <p class="text-sm text-gray-600">
-                      Wyświetlanie {{ Math.min(orders.length, ordersPagination.limit) }} z {{ ordersCount }} zamówień
-                    </p>
-                    <div class="flex gap-2">
-                      <UButton 
-                        size="sm" 
-                        color="gray" 
-                        variant="ghost" 
-                        icon="i-heroicons-arrow-left" 
-                        :disabled="ordersPagination.offset === 0"
-                        @click="prevOrdersPage"
-                      >
-                        Poprzednia
-                      </UButton>
-                      <UButton 
-                        size="sm" 
-                        color="gray" 
-                        variant="ghost" 
-                        icon="i-heroicons-arrow-right" 
-                        icon-right
-                        :disabled="ordersPagination.offset + ordersPagination.limit >= ordersCount"
-                        @click="nextOrdersPage"
-                      >
-                        Następna
-                      </UButton>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-  
             <!-- Password Tab -->
             <template #password="{ item }">
               <div class="space-y-6 p-6">
@@ -618,7 +538,7 @@
     email: string
     phone: string | null
     metadata: { [key: string]: any }
-    addresses: any[]
+    shipping_addresses: any[]
   }
 
   interface ProfileForm {
@@ -666,12 +586,6 @@
       icon: 'i-heroicons-map-pin'
     },
     {
-      slot: 'orders' as const,
-      key: 'orders',
-      label: 'Zamówienia',
-      icon: 'i-heroicons-shopping-bag'
-    },
-    {
       slot: 'password' as const,
       key: 'password',
       label: 'Hasło',
@@ -686,7 +600,7 @@
   ]
 
   const authStore = useAuthStore()
-  const { customer, pending, error } = storeToRefs(authStore)
+  const { customer, loading, error } = storeToRefs(authStore)
 
   // Reactive data
   const selectedTab = ref(0)
@@ -725,17 +639,14 @@
   const isEditingAddress = ref(false)
   const currentEditingAddressId = ref<string | null>(null)
 
-  // Orders management state
-  const orders = ref<any[]>([])
-  const isLoadingOrders = ref(false)
-  const ordersCount = ref(0)
-  const ordersPagination = ref({
-    limit: 10,
-    offset: 0
-  })
-
   const profileErrors = ref<Record<string, any>>({
-    metadata: {},
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    metadata: {
+      date_of_birth: ''
+    },
     general: ''
   })
   const addressErrors = ref<Record<string, string>>({})
@@ -760,20 +671,14 @@
     }
   }, { immediate: true, deep: true })
 
-  // Fetch orders when the 'orders' tab is activated
-  watch(selectedTab, (newTab) => {
-    if (newTab === 'orders' && orders.value.length === 0 && hasMoreOrders.value) {
-      loadMoreOrders()
-    }
-  })
-
   // --- FORM VALIDATION ---
   const validateProfileForm = () => {
-    profileErrors.value = { first_name: '', last_name: '', email: '', general: '' }
+    profileErrors.value = { first_name: '', last_name: '', email: '', phone: '', metadata: {}, general: '' }
     let isValid = true
     if (!profileForm.value.first_name) { profileErrors.value.first_name = 'Imię jest wymagane'; isValid = false }
     if (!profileForm.value.last_name) { profileErrors.value.last_name = 'Nazwisko jest wymagane'; isValid = false }
     if (!profileForm.value.email) { profileErrors.value.email = 'Email jest wymagany'; isValid = false }
+    if (!profileForm.value.phone) { profileErrors.value.phone = 'Telefon jest wymagany'; isValid = false }
     return isValid
   }
 
@@ -818,10 +723,11 @@
     addressErrors.value.general = ''
     try {
       const payload: AddressPayload = { ...addressForm.value }
+      console.log(payload)
       if (isEditingAddress.value && currentEditingAddressId.value) {
-        await authStore.updateAddress(currentEditingAddressId.value, payload)
+        await authStore.updateShippingAddress(currentEditingAddressId.value, payload)
       } else {
-        await authStore.addAddress(payload)
+        await authStore.addShippingAddress(payload)
       }
       cancelAddressForm()
     } catch (err: any) {
@@ -832,7 +738,7 @@
   const handleDeleteAddress = async (addressId: string) => {
     if (confirm('Czy na pewno chcesz usunąć ten adres?')) {
       try {
-        await authStore.deleteAddress(addressId)
+        await authStore.deleteShippingAddress(addressId)
       } catch (err) {
         // Error is already handled in the store, but you could add specific UI feedback here if needed
         console.error('Failed to delete address from component.')
@@ -853,12 +759,6 @@
     } catch (err: any) {
       passwordErrors.value.general = err.data?.message || 'Wystąpił błąd podczas zmiany hasła'
     }
-  }
-
-  const loadMoreOrders = () => {
-    const limit = 5
-    const offset = orders.value.length
-    authStore.fetchOrders(limit, offset)
   }
 
   // --- ADDRESS FORM UI LOGIC ---

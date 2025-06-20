@@ -9,15 +9,14 @@ import type { H3Event } from 'h3'
  * @returns Configured Medusa client
  */
 export const serverMedusaClient = (event: H3Event) => {
-  // Get configuration from environment variables
-  const baseUrl = process.env.MEDUSA_BACKEND_URL || 'http://localhost:9000'
-  const publishableKey = process.env.MEDUSA_PUBLISHABLE_KEY || ''
-  
+  const config = useRuntimeConfig()
+
   // Create a new Medusa client
   const client = new Medusa({
-    baseUrl,
-    publishableApiKey: publishableKey,
-    maxRetries: 3
+    baseUrl: config.public.medusa.baseUrl,
+    publishableApiKey: config.public.medusa.publishableKey,
+    maxRetries: 3,
+    debug: process.env.NODE_ENV === "development",
   })
   
   return client

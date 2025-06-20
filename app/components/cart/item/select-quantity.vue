@@ -19,7 +19,7 @@ const updateQuantity = async (quantity: number) => {
     try {
       // Aktualizuj przedmiot w koszyku
       await cartStore.updateItem(item.id, { quantity })
-      // fetchCart jest już wywoływane w updateItem, więc nie musimy tego robić ponownie
+      // retrieveCart jest już wywoływane w updateItem, więc nie musimy tego robić ponownie
     } catch (error) {
       console.error('Błąd podczas aktualizacji ilości:', error)
     }

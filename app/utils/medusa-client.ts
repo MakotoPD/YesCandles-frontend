@@ -1,4 +1,4 @@
-import Medusa from '@medusajs/medusa-js'
+import { Medusa } from '@medusajs/js-sdk'
 
 /**
  * Creates a client-side Medusa client instance.
@@ -11,9 +11,9 @@ export const createMedusaClient = () => {
   
   // Create a new Medusa client with the proper configuration
   const client = new Medusa({
-    baseUrl: config.public.medusaBackendUrl,
-    publishableApiKey: config.public.medusaPublishableKey,
-    maxRetries: 3
+    baseUrl: config.public.medusa.baseUrl,
+    publishableApiKey: config.public.medusa.publishableKey,
+    debug: process.env.NODE_ENV === "development",
   })
   
   return client
@@ -42,14 +42,14 @@ export const useMedusaClient = () => {
  */
 export const medusaFetch = async (endpoint: string, options: any = {}) => {
   const config = useRuntimeConfig()
-  const baseUrl = config.public.medusaBackendUrl
+  const baseUrl = config.public.medusa.baseUrl
   
   // Ensure credentials are included to send cookies
   const defaultOptions = {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'x-publishable-api-key': config.public.medusaPublishableKey
+      'x-publishable-api-key': config.public.medusa.publishableKey
     }
   }
   

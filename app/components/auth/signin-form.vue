@@ -28,7 +28,7 @@ const form = ref<FormType>({
 // Form submission
 const onSubmit = async (_event: FormSubmitEvent<FormType>) => {
   // The login action in the store will handle errors and navigation
-  await authStore.login(form.value.email, form.value.password)
+  await authStore.login(form.value)
 }
 
 const switchToRegister = () => {
@@ -43,11 +43,18 @@ const switchToRegister = () => {
       description="Zaloguj się do swojego konta, aby kontynuować."
     />
 
-    <AppFormError
-      :message="actionError"
-      :show="!!actionError"
-      class="mb-4"
-    />
+    <!-- Używamy ClientOnly dla komponentu błędu aby zapobiec niedopasowaniu hydracji -->
+    <ClientOnly>
+      <AppFormError
+        :message="actionError"
+        :show="!!actionError"
+        class="mb-4"
+      />
+      <template #fallback>
+        <!-- Placeholder podczas renderowania SSR -->
+        <div class="h-12"></div>
+      </template>
+    </ClientOnly>
 
     <UForm
       :schema="formSchema"

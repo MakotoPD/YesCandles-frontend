@@ -1,312 +1,586 @@
+// stores/customer.ts
 import { defineStore } from 'pinia'
-import type { Customer, Order, Address } from '@medusajs/medusa'
-import { useMedusaClient, medusaFetch } from '~/utils/medusa-client'
 
-// Define types for our forms and payloads
-interface PasswordForm {
-  current_password: string
-  new_password: string
+interface Customer {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  phone?: string
+  billing_address_id?: string
+  metadata: MetaData[]
+  shipping_addresses: ShippingAddress[]
+  created_at: string
+  updated_at: string
 }
 
-interface AddressPayload {
+interface MetaData {
+  date_of_birth: string
+}
+
+interface ShippingAddress {
+  id: string
   first_name: string
   last_name: string
   address_1: string
   address_2?: string
   city: string
-  postal_code: string
   country_code: string
+  province?: string
+  postal_code: string
   phone?: string
-  address_name?: string
-  is_default_shipping?: boolean
-  is_default_billing?: boolean
-  metadata?: Record<string, any>
+  company?: string
+  customer_id: string
 }
 
-interface RegisterPayload {
-  first_name: string
-  last_name: string
+interface RegisterData {
   email: string
   password: string
+  first_name: string
+  last_name: string
   phone?: string
 }
 
-interface PasswordPayload {
-  current_password: string
-  new_password: string
+interface LoginData {
+  email: string
+  password: string
 }
 
-interface ProfileUpdatePayload {
+interface UpdateProfileData {
   first_name?: string
   last_name?: string
   phone?: string
-  metadata?: Record<string, any>
+}
+
+interface AddressData {
+  first_name: string
+  last_name: string
+  address_1: string
+  address_2?: string
+  city: string
+  country_code: string
+  province?: string
+  postal_code: string
+  phone?: string
+  company?: string
+}
+
+interface ChangePasswordData {
+  old_password: string
+  new_password: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  // Core auth state
+  const client = useMedusaClient()
+  
+  // Stan
   const customer = ref<Customer | null>(null)
-  const isAuthenticated = computed(() => !!customer.value)
-  const pending = ref(false) // For initial customer fetch
-  const error = ref<any | null>(null)
+  const isLoggedIn = ref(false)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  // State for other actions (profile update, address, password)
-  const actionPending = ref(false)
-  const actionError = ref<any | null>(null)
-  const successMessage = ref<string | null>(null)
+  // Gettery
+  const fullName = computed(() => {
+    if (!customer.value) return ''
+    return `${customer.value.first_name} ${customer.value.last_name}`
+  })
 
-  // State for orders
-  const orders = ref<Order[]>([])
-  const ordersPending = ref(false)
-  const hasMoreOrders = ref(true)
+  const primaryAddress = computed(() => {
+    if (!customer.value?.shipping_addresses?.length) return null
+    return customer.value.shipping_addresses[0]
+  })
 
-  // --- HELPER FUNCTIONS ---
-  function showSuccess(message: string) {
-    successMessage.value = message
-    setTimeout(() => {
-      successMessage.value = null
-    }, 3000)
-  }
-
-  // --- CORE ACTIONS ---
-  async function fetchCustomer() {
-    pending.value = true
+  // Akcje
+  const clearError = () => {
     error.value = null
-    try {
-      // Use our server endpoint which handles token extraction and authentication
-      const response = await $fetch<{ customer: Customer }>('/api/customers/me', {
-        method: 'GET',
-        credentials: 'include', // Important to include credentials to send cookies
-      })
-      customer.value = response.customer
-    } catch (e) {
-      customer.value = null
-      // Don't set a global error for a 401, as it's expected when not logged in
-      if ((e as any).statusCode !== 401) {
-        error.value = e
-      }
-    } finally {
-      pending.value = false
-    }
   }
 
-  async function login(email: string, password: string) {
-    actionPending.value = true
-    actionError.value = null
+  const setLoading = (state: boolean) => {
+    loading.value = state
+  }
+
+  const setError = (message: string) => {
+    error.value = message
+  }
+
+  // Rejestracja klienta - poprawiona wersja
+  const register = async (data: RegisterData) => {
     try {
-      // Use our server login endpoint which will set the JWT cookie
-      const response = await $fetch<{ customer: Customer }>('/api/customers/login', {
-        method: 'POST',
-        body: { email, password },
-        credentials: 'include', // Important to include credentials to receive cookies
+      setLoading(true)
+      clearError()
+
+      console.log('Próba rejestracji z danymi:', { 
+        email: data.email, 
+        first_name: data.first_name, 
+        last_name: data.last_name 
       })
-      
-      customer.value = response.customer
+
+      // Debug: sprawdź konfigurację
+      const config = useRuntimeConfig()
+      console.log('Konfiguracja Medusa:', {
+        baseUrl: config.public.medusa.baseUrl,
+        publishableKey: config.public.medusa.publishableKey ? 'SET' : 'NOT SET',
+        publishableKeyPrefix: config.public.medusa.publishableKey?.substring(0, 10) + '...'
+      })
+
+      const token = await client.auth.register("customer", "emailpass", {
+        "email": data.email,
+        "password": data.password,
+      })
+
+      // Aktualizacja wywołania API dla nowego @medusajs/js-sdk
+      await client.store.customer.create({
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone || undefined
+      },
+      {},
+      {
+        Authorization: `Bearer ${token}`
+      }).then(({ customer: customerData }) => {
+
+        // Zapisz token jako cookie przez server API
+        $fetch('/api/auth/set-token', {
+          method: 'POST',
+          body: { token }
+        })
+
+        console.log('Odpowiedź rejestracji:', customerData)
+
+        if (customerData) {
+          customer.value = customerData
+          isLoggedIn.value = true
+          console.log('Rejestracja udana')
+        }
+      })
+    
       return customer.value
-    } catch (e: any) {
-      actionError.value = e.data?.message || 'Login failed. Please check your credentials.'
-      throw e // Re-throw to be caught in the component
-    } finally {
-      actionPending.value = false
-    }
-  }
 
-  async function logout() {
-    try {
-      await $fetch('/api/customers/logout', {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-    } catch (e) {
-      console.error('Error during logout:', e)
-    } finally {
-      // Clear local state regardless of API call success
-      customer.value = null
-      orders.value = []
-      hasMoreOrders.value = true
-    }
-  }
-
-  // --- PROFILE ACTIONS ---
-  async function updateProfile(profileData: ProfileUpdatePayload) {
-    actionPending.value = true
-    actionError.value = null
-    try {
-      // Remove email from payload as it can't be updated directly
-      const { email, ...updatePayload } = profileData as any
-      
-      await $fetch('/api/customers/me', {
-        method: 'POST',
-        body: updatePayload,
-        credentials: 'include',
+    } catch (err: any) {
+      console.error('Błąd rejestracji:', err)
+      console.error('Szczegóły błędu:', {
+        status: err?.response?.status,
+        statusText: err?.response?.statusText,
+        data: err?.response?.data,
+        message: err?.message
       })
       
-      await fetchCustomer() // Refresh customer data
-      showSuccess('Profil został zaktualizowany.')
-    } catch (e: any) {
-      actionError.value = e.data?.message || 'Wystąpił błąd podczas aktualizacji profilu.'
-      throw e
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  // --- ADDRESS ACTIONS ---
-  async function addAddress(address: AddressPayload) {
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await $fetch('/api/customers/address', {
-        method: 'POST',
-        body: address,
-        credentials: 'include',
-      })
-      await fetchCustomer()
-      showSuccess('Adres został dodany.')
-    } catch (e) {
-      actionError.value = e
-      throw e
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function updateAddress(addressId: string, address: AddressPayload) {
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await $fetch(`/api/customers/address/${addressId}`, {
-        method: 'POST',
-        body: address,
-        credentials: 'include',
-      })
-      await fetchCustomer()
-      showSuccess('Adres został zaktualizowany.')
-    } catch (e) {
-      actionError.value = e
-      throw e
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function deleteAddress(addressId: string) {
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await $fetch(`/api/customers/address/${addressId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      await fetchCustomer()
-      showSuccess('Adres został usunięty.')
-    } catch (e) {
-      actionError.value = e
-      throw e
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  // --- PASSWORD ACTION ---
-  async function register(payload: RegisterPayload) {
-    actionPending.value = true
-    actionError.value = null
-    clearSuccessMessage()
-
-    try {
-      // Medusa API creates the customer but doesn't log them in.
-      await $fetch('/api/customers', {
-        method: 'POST',
-        body: payload,
-      })
-
-      setSuccessMessage('Rejestracja powiodła się! Możesz się teraz zalogować.')
-      return true // Indicate success
-    } catch (e: any) {
-      actionError.value = e.data?.message || 'Wystąpił błąd podczas rejestracji.'
-      return false // Indicate failure
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  async function changePassword(payload: PasswordPayload) {
-    actionPending.value = true
-    actionError.value = null
-    try {
-      await $fetch('/api/customers/password', {
-        method: 'POST',
-        body: payload,
-        credentials: 'include',
-      })
-      showSuccess('Hasło zostało zmienione.')
-    } catch (e) {
-      actionError.value = e
-      throw e
-    } finally {
-      actionPending.value = false
-    }
-  }
-
-  // --- ORDER ACTION ---
-  async function fetchOrders(limit: number = 10, offset: number = 0) {
-    if (ordersPending.value || !hasMoreOrders.value) return
-    ordersPending.value = true
-    try {
-      // Use medusaFetch utility to ensure proper credentials and headers
-      const response = await $fetch<{ orders: Order[] }>(`/api/customers/orders?limit=${limit}&offset=${offset}`, {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      if (response.orders.length > 0) {
-        orders.value.push(...response.orders)
-      } else {
-        hasMoreOrders.value = false
+      let message = 'Błąd podczas rejestracji'
+      
+      if (err?.response?.status === 401) {
+        message = 'Błąd autoryzacji - sprawdź konfigurację publishable key'
+      } else if (err?.response?.status === 422) {
+        message = 'Nieprawidłowe dane - użytkownik może już istnieć'
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message
       }
-    } catch (e) {
-      console.error('Failed to fetch orders:', e)
+      
+      setError(message)
+      throw err
     } finally {
-      ordersPending.value = false
+      setLoading(false)
     }
   }
-  
-  // Clear success message
-  function clearSuccessMessage() {
-    successMessage.value = null
+
+  // Logowanie - poprawiona wersja
+  const login = async (data: LoginData) => {
+    try {
+      setLoading(true)
+      clearError()
+
+      console.log('Próba logowania dla:', data.email)
+
+      // W Medusa v2 może być inna struktura
+      const token = await client.auth.login(
+        "customer",
+        "emailpass",
+        {
+          email: data.email,
+          password: data.password
+        }
+      )
+      
+      if (typeof token !== "string") {
+        alert("Authentication requires additional steps")
+        // replace with the redirect logic of your application
+        window.location.href = token.location
+        return
+      }
+
+      const { customer: customerData } = await client.store.customer.retrieve()
+
+      if (customerData) {
+        // Zapisz token jako cookie przez server API
+        await $fetch('/api/auth/set-token', {
+          method: 'POST',
+          body: { token }
+        })
+
+        customer.value = customerData
+        isLoggedIn.value = true
+      }
+
+      return customer.value
+    } catch (err: any) {
+      console.error('Błąd logowania:', err)
+      
+      let message = 'Błąd podczas logowania'
+      
+      if (err?.response?.status === 401) {
+        message = 'Nieprawidłowy email lub hasło'
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message
+      }
+      
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
   }
-  
-  // Set success message
-  function setSuccessMessage(message: string) {
-    successMessage.value = message
-    setTimeout(() => {
-      successMessage.value = null
-    }, 3000)
+
+  // Wylogowanie
+  const logout = async () => {
+    try {
+      setLoading(true)
+      clearError()
+
+      // Usuń cookie z tokenem
+      await $fetch('/api/auth/clear-token', {
+        method: 'POST'
+      })
+
+      // Wyczyść stan
+      customer.value = null
+      isLoggedIn.value = false
+      
+      console.log('Wylogowano pomyślnie')
+    } catch (err: any) {
+      console.error('Błąd wylogowania:', err)
+      setError('Błąd podczas wylogowania')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Pobieranie aktualnych danych klienta
+  const fetchCustomer = async () => {
+    try {
+      setLoading(true)
+      clearError()
+
+      const response = await client.store.customer.retrieve()
+      
+      if (response.customer) {
+        customer.value = response.customer
+        isLoggedIn.value = true
+      }
+
+      return response
+    } catch (err: any) {
+      console.log('Nie można pobrać danych klienta (prawdopodobnie nie zalogowany)')
+      customer.value = null
+      isLoggedIn.value = false
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Aktualizacja profilu klienta
+  const updateProfile = async (data: UpdateProfileData) => {
+    const tokenData = await $fetch('/api/auth/get-token', {
+      method: 'GET',
+    })
+    const token = tokenData.token
+    if (!process.client) {
+      // Jeśli nie jesteśmy w przeglądarce, nic nie rób
+      console.warn('Próbowano wywołać updateProfile po stronie serwera. Pomijam.')
+      return
+    }
+    try {
+      setLoading(true)
+      clearError()
+
+      if (!customer.value) {
+        throw new Error('Klient nie jest zalogowany')
+      }
+      console.log(data)
+      const response = await client.store.customer.update({
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        metadata: {
+          date_of_birth: data.metadata?.date_of_birth
+        }
+      },
+      {},
+      {
+        Authorization: `Bearer ${token}`
+      })
+
+      if (response.customer) {
+        customer.value = response.customer
+      }
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas aktualizacji profilu'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Dodanie adresu wysyłki
+  const addShippingAddress = async (data: AddressData) => {
+
+    const tokenData = await $fetch('/api/auth/get-token', {
+      method: 'GET',
+    })
+    const token = tokenData.token
+    try {
+      setLoading(true)
+      clearError()
+
+      if (!customer.value) {
+        throw new Error('Klient nie jest zalogowany')
+      }
+
+      const response = await client.store.customer.createAddress({
+        address_name: data.address_name,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        address_1: data.address_1,
+        address_2: data.address_2,
+        postal_code: data.postal_code,
+        city: data.city,
+        country_code: 'PL',
+        phone: data.phone,
+        is_default_shipping: data.is_default_shipping,
+        is_default_billing: data.is_default_billing,
+        company: data.company,
+        province: data.province,
+        province_code: data.province_code,
+        metadata: data.metadata
+      },
+      {},
+      {
+        Authorization: `Bearer ${token}`
+      })
+
+      if (response.address) {
+        await fetchCustomer()
+      }
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas dodawania adresu'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Aktualizacja adresu wysyłki
+  const updateShippingAddress = async (addressId: string, data: AddressData) => {
+    const tokenData = await $fetch('/api/auth/get-token', {
+      method: 'GET',
+    })
+    const token = tokenData.token
+    try {
+      setLoading(true)
+      clearError()
+
+      if (!customer.value) {
+        throw new Error('Klient nie jest zalogowany')
+      }
+
+      const response = await client.store.customer.updateAddress(addressId, {
+        address_name: data.address_name,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        address_1: data.address_1,
+        address_2: data.address_2,
+        postal_code: data.postal_code,
+        city: data.city,
+        country_code: 'PL',
+        phone: data.phone,
+        is_default_shipping: data.is_default_shipping,
+        is_default_billing: data.is_default_billing,
+        company: data.company,
+        province: data.province,
+        province_code: data.province_code,
+        metadata: data.metadata
+      },
+      {},
+      {
+        Authorization: `Bearer ${token}`
+      })
+
+      if (response.address) {
+        await fetchCustomer()
+      }
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas aktualizacji adresu'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Usunięcie adresu wysyłki
+  const deleteShippingAddress = async (addressId: string) => {
+    const tokenData = await $fetch('/api/auth/get-token', {
+      method: 'GET',
+    })
+    const token = tokenData.token
+
+    try {
+      setLoading(true)
+      clearError()
+
+      if (!customer.value) {
+        throw new Error('Klient nie jest zalogowany')
+      }
+
+      const response = await client.store.customer.deleteAddress(addressId, {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+      })
+
+      if (customer.value && customer.value.shipping_addresses) {
+        customer.value.shipping_addresses = 
+          customer.value.shipping_addresses.filter(addr => addr.id !== addressId)
+      }
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas usuwania adresu'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Zmiana hasła
+  const changePassword = async (data: ChangePasswordData) => {
+    try {
+      setLoading(true)
+      clearError()
+
+      if (!customer.value) {
+        throw new Error('Klient nie jest zalogowany')
+      }
+
+      const response = await client.store.customer.update({
+        password: data.new_password,
+        old_password: data.old_password
+      })
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas zmiany hasła'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Reset hasła
+  const requestPasswordReset = async (email: string) => {
+    try {
+      setLoading(true)
+      clearError()
+
+      const response = await client.auth.resetPassword({
+        email: email
+      })
+
+      return response
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Błąd podczas wysyłania linku resetującego hasło'
+      setError(message)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Inicjalizacja stanu z cookie
+  const initializeAuth = async (token?: string) => {
+    try {
+      let authToken = token
+      
+      // Jeśli token nie został przekazany, pobierz go z cookie
+      if (!authToken) {
+        const tokenData = await $fetch('/api/auth/get-token')
+        authToken = tokenData.token
+      }
+      
+      if (authToken) {
+        // Pobierz dane klienta używając tokena
+        const client = useMedusaClient()
+        const { customer: customerData } = await client.store.customer.retrieve({}, {
+          Authorization: `Bearer ${authToken}`
+        })
+        
+        if (customerData) {
+          customer.value = customerData
+          isLoggedIn.value = true
+          console.log('[Auth Store] User authenticated from token')
+        }
+      }
+    } catch (err) {
+      console.log('[Auth Store] No valid token or auth initialization error')
+      // Nie logujemy błędu jako error, bo to normalne gdy użytkownik nie jest zalogowany
+    }
+  }
+
+  // Inicjalizacja store
+  const initialize = async () => {
+    try {
+      // fetchCustomer jest już wywoływane przez middleware poprzez initializeAuth
+      // await fetchCustomer()
+    } catch (err) {
+      // Użytkownik nie jest zalogowany - to normalne
+    }
   }
 
   return {
-    // State
+    // Stan
     customer,
-    isAuthenticated,
-    pending,
+    isLoggedIn,
+    loading,
     error,
-    actionPending,
-    actionError,
-    successMessage,
-    orders,
-    ordersPending,
-    hasMoreOrders,
-    // Actions
-    fetchCustomer,
+    
+    // Gettery
+    fullName,
+    primaryAddress,
+    
+    // Akcje
+    clearError,
+    register,
     login,
     logout,
+    fetchCustomer,
     updateProfile,
-    addAddress,
-    updateAddress,
-    deleteAddress,
-    register,
+    addShippingAddress,
+    updateShippingAddress,
+    deleteShippingAddress,
     changePassword,
-    fetchOrders,
+    requestPasswordReset,
+    initialize,
+    initializeAuth
   }
 })

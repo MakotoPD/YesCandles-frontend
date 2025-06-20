@@ -15,7 +15,7 @@ useHead({
 
 // Use Pinia store for auth state
 const authStore = useAuthStore()
-const { customer, isAuthenticated, pending } = storeToRefs(authStore)
+const { customer, isLoggedIn, pending } = storeToRefs(authStore)
 
 // Form management for signin/register
 const mode = ref<'signin' | 'register'>('signin')
@@ -25,46 +25,48 @@ const mode = ref<'signin' | 'register'>('signin')
 </script>
 
 <template>
-  <div>
-    <div class="min-h-[40vh] flex items-center justify-center">
-      <!-- Loading state from Pinia store -->
-      <div
-        v-if="pending"
-        class="text-center"
-      >
-        <UIcon
-          name="i-heroicons-arrow-path"
-          class="animate-spin h-8 w-8 mx-auto mb-4"
-        />
-        <p>Ładowanie Twojego konta...</p>
-      </div>
+  <div class="min-h-full">
+    <ClientOnly>
+      <div class="min-h-[40vh] flex items-center justify-center">
+        <!-- Loading state from Pinia store -->
+        <div
+          v-if="pending"
+          class="text-center"
+        >
+          <UIcon
+            name="i-heroicons-arrow-path"
+            class="animate-spin h-8 w-8 mx-auto mb-4"
+          />
+          <p>Ładowanie Twojego konta...</p>
+        </div>
 
-      <!-- Connected user profile -->
-      <div v-else-if="isAuthenticated && customer" class="py-24 w-screen bg-gradient-to-br from-pink-50 via-white to-rose-50">
-        <AuthProfile />
-      </div>
+        <!-- Connected user profile -->
+        <div v-else-if="isLoggedIn && customer" class="py-24 w-screen bg-gradient-to-br from-pink-50 via-white to-rose-50">
+          <AuthProfile />
+        </div>
 
-      <!-- Authentication forms -->
-      <Transition
-        v-else
-        name="fade"
-        mode="out-in"
-      >
-        <!-- Sign in form -->
-        <AuthSigninForm
-          v-if="mode === 'signin'"
-          :key="'signin'"
-          @switch-to-register="mode = 'register'"
-        />
-
-        <!-- Registration form -->
-        <AuthRegisterForm
+        <!-- Authentication forms -->
+        <Transition
           v-else
-          :key="'register'"
-          @switch-to-signin="mode = 'signin'"
-        />
-      </Transition>
-    </div>
+          name="fade"
+          mode="out-in"
+        >
+          <!-- Sign in form -->
+          <AuthSigninForm
+            v-if="mode === 'signin'"
+            :key="'signin'"
+            @switch-to-register="mode = 'register'"
+          />
+
+          <!-- Registration form -->
+          <AuthRegisterForm
+            v-else
+            :key="'register'"
+            @switch-to-signin="mode = 'signin'"
+          />
+        </Transition>
+      </div>
+    </ClientOnly>
   </div>
 </template>
 

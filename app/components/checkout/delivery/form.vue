@@ -14,6 +14,7 @@ const { cart, isLoading } = storeToRefs(cartStore)
 // Pobieramy opcje wysyłki używając metody z cartStore
 const { shippingOptions } = storeToRefs(cartStore)
 
+
 // Zmienna określająca czy mamy włączony tryb debugowania
 const isDev = true
 
@@ -86,7 +87,7 @@ const validateDelivery = async () => {
     // Używamy metody z cartStore zamiast bezpośredniego composable
     await cartStore.setShippingMethod(value.value)
     // Po ustawieniu metody wysyłki odświeżamy koszyk
-    await cartStore.fetchCart()
+    await cartStore.retrieveCart()
   }
   emit('validate', true)
 }

@@ -5,10 +5,9 @@ import { storeToRefs } from 'pinia'
 const { isCartDropdownOpen } = useCartDropdown()
 // Używamy sklepu Pinia z reaktywnym dostępem
 const cartStore = useCartStore()
-const { cart, isLoading, itemsCount } = storeToRefs(cartStore)
+const { cart, loading, itemsCount } = storeToRefs(cartStore)
 
 // Reaktywne dane
-const loading = isLoading
 const cartItemsCount = itemsCount
 
 // Calculate subtotal with null checks
@@ -23,7 +22,7 @@ const subtotal = computed(() => {
 
 // Odśwież koszyk gdy komponent jest montowany
 onMounted(async () => {
-  await cartStore.fetchCart()
+  await cartStore.retrieveCart()
 })
 </script>
 

@@ -15,11 +15,11 @@ export default defineNuxtPlugin({
         // Sprawdź czy istnieje cookie z ID koszyka
         const cartIdCookie = useCookie('cart_id');
         if (cartIdCookie.value) {
-          await cartStore.fetchCart()
+          await cartStore.retrieveCart()
           console.log('[Cart Store] Koszyk załadowany pomyślnie:', {
             id: cartStore.cartId,
             items: cartStore.items.length,
-            total: cartStore.totals.total
+            total: cartStore.total
           })
         } else {
           console.log('[Cart Store] Brak zapisanego koszyka')

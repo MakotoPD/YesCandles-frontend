@@ -1,17 +1,25 @@
-
-
 export default defineNuxtRouteMiddleware(async () => {
   if (process.server) {
     return
   }
 
   const authStore = useAuthStore()
-
-  // If a token exists, always try to fetch the customer data
-  // This ensures the session is always refreshed on page reload
-  if (useCookie('medusa_jwt').value) {
-    console.log('[Auth Middleware] JWT token found, fetching customer data')
-    await authStore.fetchCustomer()
+  const cartStore = useCartStore()
+  
+  // Resetuj komunikaty o błędach przy każdej zmianie strony/nawigacji
+  authStore.clearError()
+  
+  // Sprawdź czy istnieje token przez API endpoint (httpOnly cookie)
+  try {
+    const tokenData = await $fetch('/api/auth/get-token')
+    
+    if (tokenData.token && !authStore.isLoggedIn) {
+      console.log('[Auth Middleware] JWT token found, initializing auth')
+      await authStore.initializeAuth(tokenData.token)
+    }
+  } catch (error) {
+    console.log('[Auth Middleware] No token found or error checking token')
   }
-})
 
+  cartStore.initializeCart()
+})

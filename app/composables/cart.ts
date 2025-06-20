@@ -1,4 +1,5 @@
 import type { StoreAddCartLineItem, StoreCart, StoreCartShippingMethod, StoreOrder, StoreUpdateCart, StoreUpdateCartLineItem } from '@medusajs/types'
+import { useCartStore } from '~/stores/cart'
 
 export const useUserCart = () => {
   const cartIdCookie = useCookie('cart_id', {
@@ -32,17 +33,19 @@ export const useCartDropdown = () => {
 }
 
 export const useFetchCart = () => {
-  const { retrieveCart } = useCart()
+  const cartStore = useCartStore()
 
   return useLazyAsyncData(
     'cart',
     async () => {
       try {
-        return await retrieveCart()
+        // Używamy Pinia store zamiast composables/data.ts
+        const response = await cartStore.retrieveCart()
+        return response?.cart || null
       } catch (error) {
         console.error('Error fetching cart:', error)
         // Return empty cart data structure to prevent errors
-        return { cart: null }
+        return null
       }
     },
     {
@@ -53,7 +56,7 @@ export const useFetchCart = () => {
 }
 
 export const useAddToCart = () => {
-  const { updateOrCreateLineItem } = useCart()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<StoreCart>()
@@ -62,7 +65,9 @@ export const useAddToCart = () => {
     loading.value = true
 
     try {
-      data.value = await updateOrCreateLineItem(item)
+      // Używamy Pinia store zamiast composables/data.ts
+      const response = await cartStore.addOrUpdateItem(item.variant_id, item.quantity || 1)
+      data.value = response?.cart
     }
     catch (error) {
       console.error('Error updating cart:', error)
@@ -81,7 +86,7 @@ export const useAddToCart = () => {
 }
 
 export const useUpdateCart = () => {
-  const { updateCart } = useCart()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<StoreCart>()
@@ -90,7 +95,9 @@ export const useUpdateCart = () => {
     loading.value = true
 
     try {
-      data.value = await updateCart(dataToUpdate)
+      // Używamy Pinia store zamiast composables/data.ts
+      const response = await cartStore.updateCart(dataToUpdate)
+      data.value = response?.cart
     }
     catch (error) {
       console.error('Error updating cart:', error)
@@ -109,7 +116,7 @@ export const useUpdateCart = () => {
 }
 
 export const useUpdateLineItem = () => {
-  const { updateLineItem } = useCart()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<StoreCart>()
@@ -118,7 +125,9 @@ export const useUpdateLineItem = () => {
     loading.value = true
 
     try {
-      data.value = await updateLineItem(itemId, dataToUpdate)
+      // Używamy Pinia store zamiast composables/data.ts
+      const response = await cartStore.updateLineItem(itemId, dataToUpdate)
+      data.value = response?.cart
     }
     catch (error) {
       console.error('Error updating line item:', error)
@@ -137,7 +146,7 @@ export const useUpdateLineItem = () => {
 }
 
 export const useDeleteLineItem = () => {
-  const { deleteLineItem } = useCart()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<boolean>()
@@ -146,7 +155,9 @@ export const useDeleteLineItem = () => {
     loading.value = true
 
     try {
-      data.value = await deleteLineItem(itemId)
+      // Używamy Pinia store zamiast composables/data.ts
+      await cartStore.removeLineItem(itemId)
+      data.value = true
     }
     catch (error) {
       console.error('Error deleting line item:', error)
@@ -165,7 +176,7 @@ export const useDeleteLineItem = () => {
 }
 
 export const useSetShippingMethod = () => {
-  const { addShippingMethod } = useCart()
+  const cartStore = useCartStore()
 
   const loading = ref(false)
   const data = ref<StoreCart>()
@@ -174,7 +185,9 @@ export const useSetShippingMethod = () => {
     loading.value = true
 
     try {
-      data.value = await addShippingMethod(shippingMethodId)
+      // Używamy Pinia store zamiast composables/data.ts
+      const response = await cartStore.addShippingMethod(shippingMethodId)
+      data.value = response?.cart
     }
     catch (error) {
       console.error('Error setting shipping method:', error)
@@ -193,7 +206,7 @@ export const useSetShippingMethod = () => {
 }
 
 export const usePlaceOrder = () => {
-  const { completeOrder } = useCart()
+  const cartStore = useCartStore()
   const { setCartId } = useUserCart()
   // Removed country reference since the site is only in Polish language
 
@@ -204,16 +217,17 @@ export const usePlaceOrder = () => {
     loading.value = true
 
     try {
-      const orderResponse = await completeOrder()
+      // Używamy Pinia store zamiast composables/data.ts
+      const orderResponse = await cartStore.completeCart()
       if (orderResponse.type === 'order') {
         setCartId()
-        refreshNuxtData(`cart`)
         data.value = orderResponse.order
         // Using Polish URL path
         navigateTo(`/zamowienie/${orderResponse.order.id}/potwierdzenie`)
       }
-      else
+      else {
         data.value = orderResponse.cart
+      }
     }
     catch (error) {
       console.error('Error placing order:', error)

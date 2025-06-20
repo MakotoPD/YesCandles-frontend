@@ -7,7 +7,7 @@ export const useCountry = () => {
     iso_3: 'POL',
     name: 'Poland',
     display_name: 'Polska',
-    region_id: 'reg_01JXW78760SH74JF8QWACENE54', // This should match the region ID used in data.ts
+    region_id: process.env.MEDUSA_REGION, // This should match the region ID used in data.ts
     numeric_code: '616',
   }
   

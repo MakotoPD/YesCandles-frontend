@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { StoreCart, StoreOrder } from '@medusajs/types'
+import { useCartStore } from '~/stores/cart'
 
 const { cart } = defineProps<{
   cart?: StoreCart | StoreOrder
@@ -35,12 +36,9 @@ async function removePromotionCode(code: string) {
       credentials: 'include'
     })
     
-    // Refresh cart data after removing promotion code
-    await refreshNuxtData('cart')
-    
-    // Force a re-fetch of the cart to get updated totals
-    const { retrieveCart } = useCart()
-    await retrieveCart()
+    // Używamy Pinia store zamiast refreshNuxtData i useCart
+    const cartStore = useCartStore()
+    await cartStore.retrieveCart()
   } catch (error) {
     console.error('Error removing promotion code:', error)
   }
@@ -75,14 +73,11 @@ async function applyPromotionCode() {
     
     if (response.success) {
       promotionSuccess.value = true
-      promotionCode.value = ''
+      promotionCode.value = '' // Clear the input after successful application
       
-      // Refresh cart data and wait for it to complete
-      await refreshNuxtData('cart')
-      
-      // Force a re-fetch of the cart to get updated totals
-      const { retrieveCart } = useCart()
-      await retrieveCart()
+      // Używamy Pinia store zamiast refreshNuxtData i useCart
+      const cartStore = useCartStore()
+      await cartStore.retrieveCart()
     }
   } catch (error: any) {
     console.error('Error applying promotion code:', error)

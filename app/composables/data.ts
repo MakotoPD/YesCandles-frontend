@@ -40,7 +40,7 @@ export const useFetchCategoryByHandle = (handle: string) => useLazyAsyncData(`ca
 const getPolishRegionId = () => {
   // Default region ID to use if we can't determine the Polish one
   // This will be replaced with the actual region ID once we fetch it
-  return 'reg_01JXW78760SH74JF8QWACENE54' // This is a fallback value
+  return process.env.MEDUSA_REGION // This is a fallback value
 }
 
 // Use this for all region_id references

@@ -15,6 +15,7 @@ const cart = computed(() => cartResponse.value?.cart)
 const { mutate: updateCart, loading: updateLoading } = useUpdateCart()
 
 // Fetch saved addresses
+
 const { data: addressesResponse, pending: loadingAddresses, error: addressesError } = useFetch('/api/customers/addresses', {
   credentials: 'include' // Ensure cookies are sent with the request
 })
